@@ -75,10 +75,20 @@ class _LoginPageState extends State<LoginPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Image.asset(
-                        'assets/images/logo.png',
-                        height: isWeb ? 150 : 120,
-                        fit: BoxFit.contain,
+                      // Image.asset(
+                      //   'assets/images/techlogo.png',
+                      //   height: isWeb ? 150 : 120,
+                      //   fit: BoxFit.contain,
+                      // ),
+                      CircleAvatar(
+                        radius: isWeb ? 75 : 60,
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/images/techlogo.png',
+                            height: isWeb ? 150 : 120,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                       SizedBox(height: 30),
                       Text(

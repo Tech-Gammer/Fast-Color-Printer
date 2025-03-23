@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'items/ItemslistPage.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -15,7 +16,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width > 600;
-    final cardAspectRatio = isDesktop ? 1.0 : 1.2;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -54,7 +54,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               _buildHeader(),
               const SizedBox(height: 24),
-              _buildStatsGrid(isDesktop, cardAspectRatio),
+              _buildStatsGrid(),
               const SizedBox(height: 32),
               _buildChartSection(isDesktop),
               const SizedBox(height: 32),
@@ -83,45 +83,85 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStatsGrid(bool isDesktop, double aspectRatio) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: isDesktop ? 4 : 2,
-      childAspectRatio: aspectRatio,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      children:  [
-        InkWell(
-          child: DashboardCard(
-            icon: Icons.analytics_outlined,
-            title: "Quotation",
-            value: "2.5K",
-            color: Colors.blue,
+  Widget _buildStatsGrid() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              DashboardCard(
+                icon: Icons.analytics_outlined,
+                title: "Items",
+                value: "2.5K",
+                color: Colors.white,
+                onTap: () => _navigateToItemsList(),
+              ),
+              DashboardCard(
+                icon: Icons.shopping_cart_outlined,
+                title: "Orders",
+                value: "346",
+                color: Colors.green,
+                onTap: () {},
+              ),
+              DashboardCard(
+                icon: Icons.monetization_on_outlined,
+                title: "Revenue",
+                value: "\$12.4K",
+                color: Colors.orange,
+                onTap: () {},
+              ),
+              DashboardCard(
+                icon: Icons.people_outline,
+                title: "Customers",
+                value: "1.2K",
+                color: Colors.purple,
+                onTap: () {},
+              ),
+            ],
           ),
-          onTap: (){
-            // Navigator.push(context, MaterialPageRoute(builder: (context)=>quotationlistpage()));
-          },
-        ),//sdashjdgasjhydgajhsgdjhasgdjh
-        DashboardCard(
-          icon: Icons.shopping_cart_outlined,
-          title: "Orders",
-          value: "346",
-          color: Colors.green,
-        ),
-        DashboardCard(
-          icon: Icons.monetization_on_outlined,
-          title: "Revenue",
-          value: "\$12.4K",
-          color: Colors.orange,
-        ),
-        DashboardCard(
-          icon: Icons.people_outline,
-          title: "Customers",
-          value: "1.2K",
-          color: Colors.purple,
-        ),
-      ],
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              DashboardCard(
+                icon: Icons.delivery_dining,
+                title: "Deliveries",
+                value: "234",
+                color: Colors.teal,
+                onTap: () {},
+              ),
+              DashboardCard(
+                icon: Icons.inventory_2_outlined,
+                title: "Products",
+                value: "1.8K",
+                color: Colors.red,
+                onTap: () {},
+              ),
+              DashboardCard(
+                icon: Icons.support_agent,
+                title: "Support Tickets",
+                value: "78",
+                color: Colors.indigo,
+                onTap: () {},
+              ),
+              DashboardCard(
+                icon: Icons.rate_review_outlined,
+                title: "Reviews",
+                value: "512",
+                color: Colors.brown,
+                onTap: () {},
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigateToItemsList() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => ItemsListPage()),
     );
   }
 
@@ -236,6 +276,7 @@ class DashboardCard extends StatelessWidget {
   final String title;
   final String value;
   final Color color;
+  final VoidCallback? onTap;
 
   const DashboardCard({
     super.key,
@@ -243,44 +284,52 @@ class DashboardCard extends StatelessWidget {
     required this.title,
     required this.value,
     required this.color,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: color.withOpacity(0.1),
-          boxShadow: kElevationToShadow[2],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () {},
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, size: 34, color: color),
-                  const SizedBox(height: 16),
-                  Text(value,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      )),
-                  const SizedBox(height: 8),
-                  Text(title,
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontWeight: FontWeight.w500,
-                      )),
-                ],
+    return Padding(
+      padding: const EdgeInsets.only(right: 16),
+      child: SizedBox(
+        width: 160,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: color.withOpacity(0.1),
+              boxShadow: kElevationToShadow[2],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: onTap,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(icon, size: 25, color: color),
+                      const SizedBox(height: 8),
+                      Text(value,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: color,
+                          )),
+                      const SizedBox(height: 8),
+                      Text(title,
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          )),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
