@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'Customer/customerlist.dart';
 import 'items/ItemslistPage.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -99,15 +100,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               DashboardCard(
                 icon: Icons.shopping_cart_outlined,
-                title: "Orders",
+                title: "Customers",
                 value: "346",
-                color: Colors.green,
-                onTap: () {},
+                color: Colors.white,
+                onTap: () =>_navigateToCustomerList(),
               ),
               DashboardCard(
                 icon: Icons.monetization_on_outlined,
                 title: "Revenue",
-                value: "\$12.4K",
+                value: "12.4K Pkr",
                 color: Colors.orange,
                 onTap: () {},
               ),
@@ -162,6 +163,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => ItemsListPage()),
+    );
+  }
+
+  void _navigateToCustomerList() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => CustomerList()),
     );
   }
 
