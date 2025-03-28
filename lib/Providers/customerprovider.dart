@@ -1,6 +1,7 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import '../Customer/quotationlistpage.dart';
+import 'invoicemodel.dart';
 import 'itemmodel.dart';
 
 class Customer {
@@ -175,6 +176,66 @@ class CustomerProvider with ChangeNotifier {
     }
   }
 
+  Future<void> saveInvoice({
+    required String customerId,
+    required List<Map<String, dynamic>> items,
+    required double subtotal,
+    required double discount,
+    required double grandTotal,
+    required DateTime dueDate,
+    String? invoiceId,
+  }) async {
+    try {
+      final databaseRef = FirebaseDatabase.instance.ref('customers/$customerId/invoices');
 
+      final invoiceData = {
+        'customerId': customerId,
+        'items': items,
+        'subtotal': subtotal,
+        'discount': discount,
+        'grandTotal': grandTotal,
+        'timestamp': ServerValue.timestamp,
+        'dueDate': dueDate.millisecondsSinceEpoch,
+      };
+
+      if (invoiceId == null) {
+        await databaseRef.push().set(invoiceData);
+      } else {
+        await databaseRef.child(invoiceId).update(invoiceData);
+      }
+    } catch (e) {
+      throw 'Error saving invoice: $e';
+    }
+  }
+
+// Add to CustomerProvider
+  Future<List<Invoice>> getInvoicesByCustomerId(String customerId) async {
+    try {
+      final databaseRef = FirebaseDatabase.instance.ref('customers/$customerId/invoices');
+      final snapshot = await databaseRef.get();
+
+      if (!snapshot.exists) return [];
+
+      final Map<dynamic, dynamic> values = snapshot.value as Map<dynamic, dynamic>;
+      return values.entries.map((entry) {
+        return Invoice.fromSnapshot(
+          entry.key.toString(),
+          entry.value as Map<dynamic, dynamic>,
+        );
+      }).toList();
+    } catch (e) {
+      throw 'Error fetching invoices: $e';
+    }
+  }
+
+  Future<void> deleteInvoice(String customerId, String invoiceId) async {
+    try {
+      await FirebaseDatabase.instance
+          .ref('customers/$customerId/invoices/$invoiceId')
+          .remove();
+    } catch (e) {
+      throw 'Error deleting invoice: $e';
+    }
+  }
 
 }

@@ -1,10 +1,11 @@
 import 'package:fast_color_printer/Customer/quotationlistpage.dart';
 import 'package:fast_color_printer/Customer/quotationpage.dart';
-import 'package:fast_color_printer/Customer/twopages.dart';
+import 'package:fast_color_printer/Customer/invoicepage.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../Providers/customerprovider.dart';
 import '../Providers/lanprovider.dart';
+import 'invoice list page.dart';
 
 class CustomerActionPage extends StatelessWidget {
   final Customer customer;
@@ -56,7 +57,7 @@ class CustomerActionPage extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => InvoiceScreen(customer: customer),
+                    builder: (context) => InvoiceListScreen(customer: customer),
                   ),
                 );
               },

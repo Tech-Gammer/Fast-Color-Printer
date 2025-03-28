@@ -35,10 +35,33 @@ class _QuotationScreenState extends State<QuotationScreen> {
 
   @override
   void initState() {
-    super.initState();
+    super.initState();//ss
+    _initializeExistingQuotation();
     _discountController.addListener(_updateTotals);
-    _initializeExistingQuotation(); // Add this
+    if (widget.quotation != null) {
+      _discountController.text = widget.quotation!.discount.toStringAsFixed(2);
+    }
+  }
 
+  void _initializeUIAfterDataLoad(List<CustomerItemAssignment> items) {
+    _items = items;
+    for (var item in _items) {
+      final itemId = item.itemId;
+      final quoteItem = widget.quotation?.items.firstWhere(
+            (i) => i['itemId'] == itemId,
+        orElse: () => <String, dynamic>{},
+      );
+
+      _selectedItems[itemId] = quoteItem?.isNotEmpty ?? false;
+      _quantityControllers.putIfAbsent(itemId, () => TextEditingController(
+        text: quoteItem?['quantity']?.toString() ?? '0',
+      ));
+    }
+
+    // Calculate totals after initializing data
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateTotals();
+    });
   }
 
   void _initializeExistingQuotation() {
@@ -60,7 +83,6 @@ class _QuotationScreenState extends State<QuotationScreen> {
     }
   }
 
-
   @override
   void dispose() {
     _discountController.dispose();
@@ -81,7 +103,6 @@ class _QuotationScreenState extends State<QuotationScreen> {
       _discount = double.tryParse(_discountController.text) ?? 0.0;
     });
   }
-
 
   // Modify the save button onPressed handler
   void _saveQuotation() async {
@@ -175,13 +196,13 @@ class _QuotationScreenState extends State<QuotationScreen> {
               : 'کوٹیشن اپ ڈیٹ کریں',
           style: const TextStyle(
               fontSize: 18,
+              color: Colors.white,
               fontWeight: FontWeight.bold
           ),
         ),
       ),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -195,6 +216,11 @@ class _QuotationScreenState extends State<QuotationScreen> {
               ? 'Quotation for ${widget.customer.name}'
               : '${widget.customer.name} کا کوٹیشن',
         ),
+        titleTextStyle: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: Colors.white
+        ),
         centerTitle: true,
         backgroundColor: Colors.blueAccent,
         elevation: 5,
@@ -204,6 +230,16 @@ class _QuotationScreenState extends State<QuotationScreen> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.active) {
             return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+
+          final items = snapshot.data ?? [];
+          if (widget.quotation != null) {
+            _initializeUIAfterDataLoad(items);
+          } else {
+            _items = items;
           }
 
           _items = snapshot.data ?? [];
@@ -219,11 +255,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
               return TextEditingController(
                 // text: quoteItem!.isNotEmpty ? quoteItem['quantity'].toString() : '0',
                 text: (quoteItem != null && quoteItem.isNotEmpty) ? quoteItem['quantity'].toString() : '0',
-
               );
-
-
-
             });
 
             _selectedItems.putIfAbsent(itemId, () {
