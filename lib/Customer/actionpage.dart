@@ -31,8 +31,8 @@ class CustomerActionPage extends StatelessWidget {
               context,
               icon: Icons.description,
               label: languageProvider.isEnglish
-                  ? 'Create Quotation'
-                  : 'کوٹیشن بنائیں',
+                  ? 'Quotations'
+                  : 'کوٹیشن',
               color: Colors.blue,
               onPressed: () {
                 // Navigate to quotation screen
@@ -49,8 +49,8 @@ class CustomerActionPage extends StatelessWidget {
               context,
               icon: Icons.assignment,
               label: languageProvider.isEnglish
-                  ? 'Create Invoice'
-                  : 'انوائس بنائیں',
+                  ? 'Invoices'
+                  : 'انوائس',
               color: Colors.green,
               onPressed: () {
                 // Navigate to invoice screen
