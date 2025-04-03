@@ -37,8 +37,16 @@ class CustomerProvider with ChangeNotifier {
   final DatabaseReference _customerItemsRef =
   FirebaseDatabase.instance.ref().child('customer_items');
   final DatabaseReference _quotationsRef = FirebaseDatabase.instance.ref().child('quotations');
+  final DatabaseReference _metadataRef = FirebaseDatabase.instance.ref('metadata');
 
-
+// Add this at the bottom of customerprovider.dart
+  Future<void> initializeQuotationNumber() async {
+    final ref = FirebaseDatabase.instance.ref('metadata/lastQuotationNumber');
+    final snapshot = await ref.get();
+    if (!snapshot.exists) {
+      await ref.set(0);
+    }
+  }
 
   Future<void> fetchCustomers() async {
     final snapshot = await _dbRef.get();
@@ -92,7 +100,8 @@ class CustomerProvider with ChangeNotifier {
   Future<void> updateCustomerItemAssignment(
       String assignmentId,
       double newRate,
-      ) async {
+      )
+  async {
     await _customerItemsRef.child(assignmentId).update({'rate': newRate});
     notifyListeners();
   }
@@ -115,6 +124,40 @@ class CustomerProvider with ChangeNotifier {
     }).toList();
   }
 
+  // Future<void> saveQuotation({
+  //   required String customerId,
+  //   required List<Map<String, dynamic>> items,
+  //   required double subtotal,
+  //   required double discount,
+  //   required double grandTotal,
+  //   String? quotationId,
+  // })
+  // async {
+  //   try {
+  //     final ref = quotationId != null
+  //         ? _quotationsRef.child(quotationId)
+  //         : _quotationsRef.push();
+  //
+  //     await ref.set({
+  //       'customerId': customerId,
+  //       'items': items,
+  //       'subtotal': subtotal,
+  //       'discount': discount,
+  //       'grandTotal': grandTotal,
+  //       'timestamp': quotationId != null
+  //           ? ServerValue.timestamp
+  //           : DateTime.now().millisecondsSinceEpoch,
+  //     });
+  //   } catch (e) {
+  //     print("Error saving quotation: $e");
+  //     throw e;
+  //   }
+  // }
+
+
+// Add to CustomerProvider
+
+  // In CustomerProvider class
   Future<void> saveQuotation({
     required String customerId,
     required List<Map<String, dynamic>> items,
@@ -122,11 +165,36 @@ class CustomerProvider with ChangeNotifier {
     required double discount,
     required double grandTotal,
     String? quotationId,
-  }) async {
+  })
+  async {
     try {
-      final ref = quotationId != null
-          ? _quotationsRef.child(quotationId)
-          : _quotationsRef.push();
+      final quotationNumberRef = _metadataRef.child('lastQuotationNumber');
+      final quotationsRef = FirebaseDatabase.instance.ref('quotations');
+
+      int quotationNumber;
+      DatabaseReference ref;
+
+      if (quotationId == null) {
+        // Generate new quotation number
+        final transactionResult = await quotationNumberRef.runTransaction((Object? currentData) {
+          int currentNumber = (currentData as int?) ?? 0;
+          currentNumber++;
+          return Transaction.success(currentNumber);
+        });
+
+        if (!transactionResult.committed) throw 'Failed to generate quotation number';
+
+        quotationNumber = transactionResult.snapshot.value as int;
+        ref = quotationsRef.push();
+      } else {
+        // Existing quotation
+        final snapshot = await quotationsRef.child(quotationId).get();
+        if (!snapshot.exists) throw 'Quotation not found';
+
+        final data = snapshot.value as Map<dynamic, dynamic>;
+        quotationNumber = data['quotationNumber'] as int;
+        ref = quotationsRef.child(quotationId);
+      }
 
       await ref.set({
         'customerId': customerId,
@@ -134,18 +202,17 @@ class CustomerProvider with ChangeNotifier {
         'subtotal': subtotal,
         'discount': discount,
         'grandTotal': grandTotal,
-        'timestamp': quotationId != null
-            ? ServerValue.timestamp
-            : DateTime.now().millisecondsSinceEpoch,
+        'timestamp': ServerValue.timestamp,
+        'quotationNumber': quotationNumber,
       });
+
+      notifyListeners();
     } catch (e) {
       print("Error saving quotation: $e");
       throw e;
     }
   }
 
-
-// Add to CustomerProvider
   Future<List<Quotation>> getQuotationsByCustomerId(String customerId) async {
     try {
       final snapshot = await _quotationsRef
@@ -184,10 +251,36 @@ class CustomerProvider with ChangeNotifier {
     required double grandTotal,
     required DateTime dueDate,
     String? invoiceId,
-  }) async {
+  })
+  async {
     try {
       final databaseRef = FirebaseDatabase.instance.ref('customers/$customerId/invoices');
+      final invoiceNumberRef = _metadataRef.child('lastInvoiceNumber');
 
+      int invoiceNumber;
+      DatabaseReference invoiceRef;
+
+      if (invoiceId == null) {
+        // Generate new invoice number
+        final transactionResult = await invoiceNumberRef.runTransaction((Object? currentData) {
+          int currentNumber = (currentData as int?) ?? 0;
+          currentNumber++;
+          return Transaction.success(currentNumber);
+        });
+
+        if (!transactionResult.committed) throw 'Failed to generate invoice number';
+
+        invoiceNumber = transactionResult.snapshot.value as int;
+        invoiceRef = databaseRef.push(); // Create new reference
+      } else {
+        // Existing invoice
+        final snapshot = await databaseRef.child(invoiceId).get();
+        if (!snapshot.exists) throw 'Invoice not found';
+
+        final data = snapshot.value as Map<dynamic, dynamic>;
+        invoiceNumber = data['invoiceNumber'] as int;
+        invoiceRef = databaseRef.child(invoiceId);
+      }
       final invoiceData = {
         'customerId': customerId,
         'items': items,
@@ -196,10 +289,13 @@ class CustomerProvider with ChangeNotifier {
         'grandTotal': grandTotal,
         'timestamp': ServerValue.timestamp,
         'dueDate': dueDate.millisecondsSinceEpoch,
+        'invoiceNumber': invoiceNumber, // Include the invoice number
+
       };
 
       if (invoiceId == null) {
         await databaseRef.push().set(invoiceData);
+        notifyListeners(); // Add this to trigger UI updates
       } else {
         await databaseRef.child(invoiceId).update(invoiceData);
       }

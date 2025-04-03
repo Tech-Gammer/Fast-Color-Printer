@@ -5,6 +5,7 @@ import '../Providers/customerprovider.dart';
 import '../Providers/invoicemodel.dart';
 import '../Providers/itemmodel.dart';
 import '../Providers/lanprovider.dart';
+import 'invoice list page.dart';
 
 class InvoiceScreen extends StatefulWidget {
   final Customer customer;
@@ -31,6 +32,32 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   double _discount = 0.0;
   List<CustomerItemAssignment> _items = [];
   DateTime? _dueDate;
+  bool _isSaving = false; // Add this line
+
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   _initializeExistingInvoice();
+  //   _discountController.addListener(_updateTotals);
+  // }
+  //
+  // void _initializeExistingInvoice() {
+  //   if (widget.invoice != null) {
+  //     _discountController.text = widget.invoice!.discount.toStringAsFixed(2);
+  //     _dueDateController.text = DateFormat('yyyy-MM-dd').format(widget.invoice!.dueDate);
+  //     _dueDate = widget.invoice!.dueDate;
+  //
+  //     for (var item in widget.invoice!.items) {
+  //       _selectedItems[item['itemId']] = true;
+  //       _quantityControllers[item['itemId']] =
+  //           TextEditingController(text: item['quantity'].toString());
+  //     }
+  //
+  //     WidgetsBinding.instance.addPostFrameCallback((_) {
+  //       _updateTotals();
+  //     });
+  //   }
+  // }
 
   @override
   void initState() {
@@ -44,16 +71,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
       _discountController.text = widget.invoice!.discount.toStringAsFixed(2);
       _dueDateController.text = DateFormat('yyyy-MM-dd').format(widget.invoice!.dueDate);
       _dueDate = widget.invoice!.dueDate;
-
-      for (var item in widget.invoice!.items) {
-        _selectedItems[item['itemId']] = true;
-        _quantityControllers[item['itemId']] =
-            TextEditingController(text: item['quantity'].toString());
-      }
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _updateTotals();
-      });
     }
   }
 
@@ -88,6 +105,10 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   }
 
   void _saveInvoice() async {
+
+    if (_isSaving) return; // Prevent multiple calls
+    setState(() => _isSaving = true);
+
     final selectedItems = _items.where((item) => _selectedItems[item.itemId] ?? false).toList();
 
     if (selectedItems.isEmpty) {
@@ -98,6 +119,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                 : 'کم از کم ایک آئٹم منتخب کریں'
         )),
       );
+      setState(() => _isSaving = false);
       return;
     }
 
@@ -109,6 +131,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                 : 'آخری تاریخ منتخب کریں'
         )),
       );
+      setState(() => _isSaving = false);
       return;
     }
 
@@ -126,13 +149,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
 
     try {
       await Provider.of<CustomerProvider>(context, listen: false).saveInvoice(
-        // customerId: widget.customer.id,
-        // items: invoiceItems,
-        // subtotal: _subtotal,
-        // discount: _discount,
-        // grandTotal: _subtotal - _discount,
-        // dueDate: _dueDate!,
-        // invoiceId: widget.invoiceId,
         customerId: widget.customer.id,
         items: invoiceItems,
         subtotal: _subtotal,
@@ -154,7 +170,15 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
                   : 'بل اپ ڈیٹ ہو گیا'
           )),
         );
-        Navigator.pop(context);
+        // Navigator.pop(context);
+      }
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => InvoiceListScreen(customer: widget.customer),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -167,6 +191,11 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
         );
       }
     }
+    finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   Widget _buildSaveButton(LanguageProvider languageProvider) {
@@ -174,14 +203,16 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
       width: double.infinity,
       height: 50,
       child: ElevatedButton(
-        onPressed: _saveInvoice,
+        onPressed: _isSaving ? null : _saveInvoice, // Disable when saving
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.green,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
         ),
-        child: Text(
+        child: _isSaving
+            ? const CircularProgressIndicator(color: Colors.white) // Show loader
+            : Text(
           languageProvider.isEnglish
               ? widget.invoice == null
               ? 'Create Invoice'
@@ -192,8 +223,7 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
           style: const TextStyle(
               fontSize: 18,
               color: Colors.white,
-              fontWeight: FontWeight.bold
-          ),
+              fontWeight: FontWeight.bold),
         ),
       ),
     );
@@ -206,10 +236,19 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        // title: Text(
+        //   languageProvider.isEnglish
+        //       ? 'Invoice for ${widget.customer.name}'
+        //       : '${widget.customer.name} کا بل',
+        // ),
         title: Text(
           languageProvider.isEnglish
-              ? 'Invoice for ${widget.customer.name}'
-              : '${widget.customer.name} کا بل',
+              ? widget.invoice == null
+              ? 'New Invoice - ${widget.customer.name}'
+              : 'Invoice ${widget.invoice?.formattedInvoiceNumber}'
+              : widget.invoice == null
+              ? 'نیا بل - ${widget.customer.name}'
+              : 'بل ${widget.invoice?.formattedInvoiceNumber}',
         ),
         titleTextStyle: const TextStyle(
             fontSize: 20,
@@ -233,7 +272,8 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
 
           _items = snapshot.data ?? [];
 
-          // Initialize controllers for new items
+
+          // Initialize controllers and selected items
           for (var item in _items) {
             final itemId = item.itemId;
             _quantityControllers.putIfAbsent(itemId, () {
@@ -253,10 +293,36 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
             });
           }
 
+          // Trigger subtotal calculation after initializing data
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _updateTotals();
+            }
+          });
+
           return Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
+                if (widget.invoice != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          languageProvider.isEnglish
+                              ? 'Invoice Number: ${widget.invoice!.formattedInvoiceNumber}'
+                              : 'بل نمبر: ${widget.invoice!.formattedInvoiceNumber}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 Expanded(
                   child: ListView(
                     children: [

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../Providers/customerprovider.dart';
 import '../Providers/invoicemodel.dart';
 import '../Providers/lanprovider.dart';
+import 'actionpage.dart';
 import 'invoicepage.dart';
 
 class InvoiceListScreen extends StatelessWidget {
@@ -17,6 +18,19 @@ class InvoiceListScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        // In InvoiceListScreen's appBar
+        leading: IconButton(
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CustomerActionPage(customer: customer),
+                ),
+              );
+            },
+            icon: const Icon(Icons.arrow_back)
+        ),
         title: Text(
           languageProvider.isEnglish
               ? 'Invoices - ${customer.name}'
@@ -110,23 +124,37 @@ class InvoiceListScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    dateFormatter.format(DateTime.fromMillisecondsSinceEpoch(invoice.timestamp)),
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _deleteInvoice(context, invoice.id),
-                  ),
+            Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                invoice.formattedInvoiceNumber,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                  fontSize: 16,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () => _deleteInvoice(context, invoice.id),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                languageProvider.isEnglish ? 'Date:' : 'تاریخ:',
+                style: TextStyle(color: Colors.grey[600]),),
+                Text(
+                  dateFormatter.format(invoice.timestamp),
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -134,9 +162,7 @@ class InvoiceListScreen extends StatelessWidget {
                     languageProvider.isEnglish ? 'Due Date:' : 'آخری تاریخ:',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  Text(
-                    dateFormatter.format(invoice.dueDate),
-                  ),
+                  Text(dateFormatter.format(invoice.dueDate)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -147,9 +173,7 @@ class InvoiceListScreen extends StatelessWidget {
                     languageProvider.isEnglish ? 'Items:' : 'اشیاء:',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  Text(
-                    '${invoice.items.length} ${languageProvider.isEnglish ? 'items' : 'اشیاء'}',
-                  ),
+                  Text('${invoice.items.length} ${languageProvider.isEnglish ? 'items' : 'اشیاء'}'),
                 ],
               ),
               const SizedBox(height: 8),

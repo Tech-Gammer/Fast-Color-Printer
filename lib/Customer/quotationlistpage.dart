@@ -13,6 +13,7 @@ class Quotation {
   final double discount;
   final double grandTotal;
   final int timestamp;
+  final int quotationNumber;
 
   Quotation({
     required this.id,
@@ -22,6 +23,8 @@ class Quotation {
     required this.discount,
     required this.grandTotal,
     required this.timestamp,
+    required this.quotationNumber,
+
   });
 
 
@@ -29,6 +32,10 @@ class Quotation {
     if (timestamp == 0) return 'No date';
     final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
     return DateFormat('dd MMM yyyy, hh:mm a').format(date);
+  }
+
+  String get formattedQuotationNumber {
+    return '#${quotationNumber.toString().padLeft(6, '0')}';
   }
 
   static Quotation fromSnapshot(String id, Map<dynamic, dynamic> data) {
@@ -40,6 +47,7 @@ class Quotation {
       discount: _toDouble(data['discount']),
       grandTotal: _toDouble(data['grandTotal']),
       timestamp: _toInt(data['timestamp']),
+      quotationNumber: _toInt(data['quotationNumber']),
     );
   }
 
@@ -179,6 +187,14 @@ class QuotationListScreen extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  Text(
+                    quotation.formattedQuotationNumber,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                      fontSize: 16,
+                    ),
+                  ),
                   Text(
                     quotation.formattedDate,
                     style: TextStyle(

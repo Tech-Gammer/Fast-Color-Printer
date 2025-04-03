@@ -211,10 +211,19 @@ class _QuotationScreenState extends State<QuotationScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        // title: Text(
+        //   languageProvider.isEnglish
+        //       ? 'Quotation for ${widget.customer.name}'
+        //       : '${widget.customer.name} کا کوٹیشن',
+        // ),
         title: Text(
           languageProvider.isEnglish
-              ? 'Quotation for ${widget.customer.name}'
-              : '${widget.customer.name} کا کوٹیشن',
+              ? widget.quotation == null
+              ? 'New Quotation - ${widget.customer.name}'
+              : 'Quotation ${widget.quotation?.formattedQuotationNumber}'
+              : widget.quotation == null
+              ? 'نیا بل - ${widget.customer.name}'
+              : 'بل ${widget.quotation?.formattedQuotationNumber}',
         ),
         titleTextStyle: TextStyle(
           fontSize: 20,
