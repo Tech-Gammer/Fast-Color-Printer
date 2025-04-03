@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import '../Providers/customerprovider.dart';
 import '../Providers/invoicemodel.dart';
 import '../Providers/itemmodel.dart';
 import '../Providers/lanprovider.dart';
 import 'invoice list page.dart';
+import 'invoicepdf.dart';
 
 class InvoiceScreen extends StatefulWidget {
   final Customer customer;
@@ -198,35 +201,159 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     }
   }
 
+  // Widget _buildSaveButton(LanguageProvider languageProvider) {
+  //   return SizedBox(
+  //     width: double.infinity,
+  //     height: 50,
+  //     child: ElevatedButton(
+  //       onPressed: _isSaving ? null : _saveInvoice, // Disable when saving
+  //       style: ElevatedButton.styleFrom(
+  //         backgroundColor: Colors.green,
+  //         shape: RoundedRectangleBorder(
+  //           borderRadius: BorderRadius.circular(10),
+  //         ),
+  //       ),
+  //       child: _isSaving
+  //           ? const CircularProgressIndicator(color: Colors.white) // Show loader
+  //           : Text(
+  //         languageProvider.isEnglish
+  //             ? widget.invoice == null
+  //             ? 'Create Invoice'
+  //             : 'Update Invoice'
+  //             : widget.invoice == null
+  //             ? 'بل بنائیں'
+  //             : 'بل اپ ڈیٹ کریں',
+  //         style: const TextStyle(
+  //             fontSize: 18,
+  //             color: Colors.white,
+  //             fontWeight: FontWeight.bold),
+  //       ),
+  //     ),
+  //   );
+  // }
+
   Widget _buildSaveButton(LanguageProvider languageProvider) {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton(
-        onPressed: _isSaving ? null : _saveInvoice, // Disable when saving
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+    return Column(
+      children: [
+        SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _isSaving ? null : _saveInvoice,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: _isSaving
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : Text(
+                  languageProvider.isEnglish
+                      ? widget.invoice == null
+                      ? 'Create Invoice'
+                      : 'Update Invoice'
+                      : widget.invoice == null
+                      ? 'بل بنائیں'
+                      : 'بل اپ ڈیٹ کریں',
+                  style: const TextStyle(
+                      fontSize: 18,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold)),
+            ),
+        ),
+        if (widget.invoice != null) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _printInvoice,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueAccent,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              child: Text(
+                  languageProvider.isEnglish
+                      ? 'Print Invoice'
+                      : 'بل پرنٹ کریں',
+                  style: const TextStyle(
+                      fontSize: 18,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold)),
+            ),
           ),
-        ),
-        child: _isSaving
-            ? const CircularProgressIndicator(color: Colors.white) // Show loader
-            : Text(
-          languageProvider.isEnglish
-              ? widget.invoice == null
-              ? 'Create Invoice'
-              : 'Update Invoice'
-              : widget.invoice == null
-              ? 'بل بنائیں'
-              : 'بل اپ ڈیٹ کریں',
-          style: const TextStyle(
-              fontSize: 18,
-              color: Colors.white,
-              fontWeight: FontWeight.bold),
-        ),
-      ),
+        ],
+      ],
     );
+  }
+
+  void _printInvoice() async {
+    try {
+      final selectedItems = _items.where((item) => _selectedItems[item.itemId] ?? false).toList();
+
+      if (selectedItems.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(
+              Provider.of<LanguageProvider>(context, listen: false).isEnglish
+                  ? 'No items selected for printing'
+                  : 'پرنٹنگ کے لیے کوئی آئٹم منتخب نہیں کیا گیا'
+          )),
+        );
+        return;
+      }
+
+      // Build items list with current data
+      final List<Map<String, dynamic>> invoiceItems = [];
+      double subtotal = 0.0;
+
+      for (var item in selectedItems) {
+        final quantity = double.tryParse(_quantityControllers[item.itemId]?.text ?? '0') ?? 0.0;
+        invoiceItems.add({
+          'itemId': item.itemId,
+          'itemName': item.itemName,
+          'rate': item.rate,
+          'quantity': quantity,
+        });
+        subtotal += item.rate * quantity;
+      }
+
+      final discount = double.tryParse(_discountController.text) ?? 0.0;
+      final grandTotal = subtotal - discount;
+
+      // Create temporary invoice with current data
+      final tempInvoice = Invoice(
+        id: widget.invoice?.id ?? 'draft-${DateTime.now().millisecondsSinceEpoch}',
+        customerId: widget.customer.id,
+        items: invoiceItems,
+        subtotal: subtotal,
+        discount: discount,
+        grandTotal: grandTotal,
+        dueDate: _dueDate ?? DateTime.now(),
+        timestamp: widget.invoice?.timestamp ?? DateTime.now().millisecondsSinceEpoch,
+        invoiceNumber: widget.invoice?.invoiceNumber ?? 0,
+      );
+
+      // Generate PDF with temporary data
+      final pdfFile = await PdfGenerator.generateInvoicePDF(
+        customer: widget.customer,
+        invoice: tempInvoice,
+      );
+
+      // Print the PDF
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdfFile.readAsBytes(),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(
+            Provider.of<LanguageProvider>(context, listen: false).isEnglish
+                ? 'Failed to print: ${e.toString()}'
+                : 'پرنٹ کرنے میں ناکام: ${e.toString()}'
+        )),
+      );
+    }
   }
 
   @override

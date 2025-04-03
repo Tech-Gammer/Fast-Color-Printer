@@ -8,7 +8,7 @@ class Invoice {
   final double discount;
   final double grandTotal;
   final DateTime timestamp; // Changed to DateTime
-  final DateTime dueDate;
+  final DateTime dueDate; // Ensure this is DateTime type
   final int invoiceNumber;
 
   Invoice({
@@ -19,7 +19,7 @@ class Invoice {
     required this.discount,
     required this.grandTotal,
     required this.timestamp,
-    required this.dueDate,
+    required this.dueDate, // Should be DateTime
     required this.invoiceNumber,
   });
 

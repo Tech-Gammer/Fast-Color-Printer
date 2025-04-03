@@ -1,7 +1,12 @@
 import 'package:fast_color_printer/Customer/quotationlistpage.dart';
+import 'package:fast_color_printer/Customer/quotationpdf.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../Providers/customerprovider.dart';
 import '../Providers/itemmodel.dart';
 import '../Providers/lanprovider.dart';
@@ -44,25 +49,36 @@ class _QuotationScreenState extends State<QuotationScreen> {
   }
 
   void _initializeUIAfterDataLoad(List<CustomerItemAssignment> items) {
-    _items = items;
-    for (var item in _items) {
-      final itemId = item.itemId;
-      final quoteItem = widget.quotation?.items.firstWhere(
-            (i) => i['itemId'] == itemId,
-        orElse: () => <String, dynamic>{},
-      );
+    setState(() {
+      _items = items;
+      for (var item in _items) {
+        final itemId = item.itemId;
+        final quoteItem = widget.quotation?.items.firstWhere(
+              (i) => i['itemId'] == itemId,
+          orElse: () => <String, dynamic>{},
+        );
 
-      _selectedItems[itemId] = quoteItem?.isNotEmpty ?? false;
-      _quantityControllers.putIfAbsent(itemId, () => TextEditingController(
-        text: quoteItem?['quantity']?.toString() ?? '0',
-      ));
-    }
+        // Ensure items from quotation are selected
+        _selectedItems[itemId] = quoteItem!.isNotEmpty;
 
-    // Calculate totals after initializing data
+        // Update quantity controller for selected items
+        if (quoteItem.isNotEmpty) {
+          _quantityControllers[itemId] =
+              TextEditingController(text: quoteItem['quantity'].toString());
+        } else {
+          _quantityControllers.putIfAbsent(
+            itemId, () => TextEditingController(text: '0'),
+          );
+        }
+      }
+    });
+
+    // Ensure totals are updated after UI rebuild
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateTotals();
     });
   }
+
 
   void _initializeExistingQuotation() {
     if (widget.quotation != null) {
@@ -90,12 +106,12 @@ class _QuotationScreenState extends State<QuotationScreen> {
   }
 
   void _updateTotals() {
+    if (!mounted) return; // ✅ Prevent updating after disposal
     setState(() {
       _subtotal = 0.0;
       for (var item in _items) {
         final itemId = item.itemId;
         if (_selectedItems[itemId] ?? false) {
-          // final quantity = double.tryParse(_quantityControllers[itemId]!.text) ?? 0;
           final quantity = double.tryParse(_quantityControllers[itemId]?.text ?? '0') ?? 0;
           _subtotal += item.rate * quantity;
         }
@@ -103,6 +119,7 @@ class _QuotationScreenState extends State<QuotationScreen> {
       _discount = double.tryParse(_discountController.text) ?? 0.0;
     });
   }
+
 
   // Modify the save button onPressed handler
   void _saveQuotation() async {
@@ -158,7 +175,30 @@ class _QuotationScreenState extends State<QuotationScreen> {
                   : 'کوٹیشن اپ ڈیٹ ہو گیا'
           )),
         );
-        Navigator.pop(context);
+        // Navigator.pop(context);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF FILE is generated'),
+            action: SnackBarAction(
+              label: Provider.of<LanguageProvider>(context, listen: false).isEnglish
+                  ? 'Share PDF' : 'PDF شیئر کریں',
+              onPressed: () => _generateAndSharePDF(),
+            ),
+          ),
+        );
+        Navigator.pop(context, 'refresh');
+      }
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => QuotationListScreen(customer: widget.customer),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -173,34 +213,151 @@ class _QuotationScreenState extends State<QuotationScreen> {
     }
   }
 
+  // Add these new methods
+  void _generateAndSharePDF() async {
+    try {
+      final customerProvider = Provider.of<CustomerProvider>(context, listen: false);
+      final quotations = await customerProvider.getQuotationsByCustomerId(widget.customer.id);
+      final latestQuotation = quotations.last;
+
+      final pdfFile = await PdfGenerator.generateQuotationPDF(
+        customer: widget.customer,
+        quotation: latestQuotation,
+      );
+
+      Share.shareXFiles([XFile(pdfFile.path)],
+          text: 'Quotation for ${widget.customer.name}');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to generate PDF: ${e.toString()}')),
+      );
+    }
+  }
+
+// Add print functionality
+  void _printPDF() async {
+    try {
+      final selectedItems = _items.where((item) => _selectedItems[item.itemId] ?? false).toList();
+
+      if (selectedItems.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(
+              Provider.of<LanguageProvider>(context, listen: false).isEnglish
+                  ? 'No items selected for printing'
+                  : 'پرنٹنگ کے لیے کوئی آئٹم منتخب نہیں کیا گیا'
+          )),
+        );
+        return;
+      }
+
+      // Build items list with current data
+      final List<Map<String, dynamic>> quotationItems = [];
+      double subtotal = 0.0;
+
+      for (var item in selectedItems) {
+        final quantity = double.tryParse(_quantityControllers[item.itemId]?.text ?? '0') ?? 0.0;
+        quotationItems.add({
+          'itemId': item.itemId,
+          'itemName': item.itemName,
+          'rate': item.rate,
+          'quantity': quantity,
+        });
+        subtotal += item.rate * quantity;
+      }
+
+      final discount = double.tryParse(_discountController.text) ?? 0.0;
+      final grandTotal = subtotal - discount;
+
+      // Create temporary quotation with current data
+      final tempQuotation = Quotation(
+        id: widget.quotation?.id ?? 'draft', // Use existing ID or dummy value
+        customerId: widget.customer.id,
+        items: quotationItems,
+        subtotal: subtotal,
+        discount: discount,
+        grandTotal: grandTotal,
+        timestamp: widget.quotation?.timestamp ?? DateTime.now().millisecondsSinceEpoch,
+        quotationNumber: widget.quotation?.quotationNumber ?? 0,
+      );
+
+      // Generate PDF with temporary data
+      final pdfFile = await PdfGenerator.generateQuotationPDF(
+        customer: widget.customer,
+        quotation: tempQuotation,
+      );
+
+      // Print the PDF
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdfFile.readAsBytes(),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(
+            Provider.of<LanguageProvider>(context, listen: false).isEnglish
+                ? 'Failed to print: ${e.toString()}'
+                : 'پرنٹ کرنے میں ناکام: ${e.toString()}'
+        )),
+      );
+    }
+  }
+
   // Update the button text
   Widget _buildSaveButton(LanguageProvider languageProvider) {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton(
-        onPressed: _saveQuotation,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.blueAccent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton(
+            onPressed: _saveQuotation,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              languageProvider.isEnglish
+                  ? widget.quotation == null
+                  ? 'Create Quotation'
+                  : 'Update Quotation'
+                  : widget.quotation == null
+                  ? 'کوٹیشن بنائیں'
+                  : 'کوٹیشن اپ ڈیٹ کریں',
+              style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold
+              ),
+            ),
           ),
         ),
-        child: Text(
-          languageProvider.isEnglish
-              ? widget.quotation == null
-              ? 'Create Quotation'
-              : 'Update Quotation'
-              : widget.quotation == null
-              ? 'کوٹیشن بنائیں'
-              : 'کوٹیشن اپ ڈیٹ کریں',
-          style: const TextStyle(
-              fontSize: 18,
-              color: Colors.white,
-              fontWeight: FontWeight.bold
+            SizedBox(height: 10),
+        if (widget.quotation != null)
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton(
+            onPressed: _printPDF,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              languageProvider.isEnglish
+                  ? 'Print Quotation'
+                  : 'کوٹیشن پرنٹ کریں',
+              style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold
+              ),
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -245,11 +402,13 @@ class _QuotationScreenState extends State<QuotationScreen> {
           }
 
           final items = snapshot.data ?? [];
-          if (widget.quotation != null) {
-            _initializeUIAfterDataLoad(items);
-          } else {
-            _items = items;
-          }
+
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _updateTotals(); // ✅ Ensure widget is still active
+          });
+
+
 
           _items = snapshot.data ?? [];
           for (var item in _items) {
@@ -306,11 +465,14 @@ class _QuotationScreenState extends State<QuotationScreen> {
                                         _selectedItems[itemId] = value!;
                                         if (!value) {
                                           _quantityControllers[itemId]?.text = '0';
+                                        } else if (!_quantityControllers.containsKey(itemId)) {
+                                          _quantityControllers[itemId] = TextEditingController(text: '1'); // Set default 1
                                         }
                                       });
                                       _updateTotals();
                                     },
                                   ),
+
                                 ],
                               ),
                               const SizedBox(height: 6),

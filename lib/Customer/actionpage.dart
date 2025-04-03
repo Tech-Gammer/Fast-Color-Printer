@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../Providers/customerprovider.dart';
 import '../Providers/lanprovider.dart';
+import 'customerlist.dart';
 import 'invoice list page.dart';
 
 class CustomerActionPage extends StatelessWidget {
@@ -18,6 +19,19 @@ class CustomerActionPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        // In InvoiceListScreen's appBar
+        leading: IconButton(
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CustomerList(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.arrow_back)
+        ),
         title: Text(customer.name),
         backgroundColor: Colors.blue,
       ),

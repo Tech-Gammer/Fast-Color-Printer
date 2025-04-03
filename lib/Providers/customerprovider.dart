@@ -39,14 +39,6 @@ class CustomerProvider with ChangeNotifier {
   final DatabaseReference _quotationsRef = FirebaseDatabase.instance.ref().child('quotations');
   final DatabaseReference _metadataRef = FirebaseDatabase.instance.ref('metadata');
 
-// Add this at the bottom of customerprovider.dart
-  Future<void> initializeQuotationNumber() async {
-    final ref = FirebaseDatabase.instance.ref('metadata/lastQuotationNumber');
-    final snapshot = await ref.get();
-    if (!snapshot.exists) {
-      await ref.set(0);
-    }
-  }
 
   Future<void> fetchCustomers() async {
     final snapshot = await _dbRef.get();
@@ -123,39 +115,6 @@ class CustomerProvider with ChangeNotifier {
       return CustomerItemAssignment.fromSnapshot(e.key, e.value);
     }).toList();
   }
-
-  // Future<void> saveQuotation({
-  //   required String customerId,
-  //   required List<Map<String, dynamic>> items,
-  //   required double subtotal,
-  //   required double discount,
-  //   required double grandTotal,
-  //   String? quotationId,
-  // })
-  // async {
-  //   try {
-  //     final ref = quotationId != null
-  //         ? _quotationsRef.child(quotationId)
-  //         : _quotationsRef.push();
-  //
-  //     await ref.set({
-  //       'customerId': customerId,
-  //       'items': items,
-  //       'subtotal': subtotal,
-  //       'discount': discount,
-  //       'grandTotal': grandTotal,
-  //       'timestamp': quotationId != null
-  //           ? ServerValue.timestamp
-  //           : DateTime.now().millisecondsSinceEpoch,
-  //     });
-  //   } catch (e) {
-  //     print("Error saving quotation: $e");
-  //     throw e;
-  //   }
-  // }
-
-
-// Add to CustomerProvider
 
   // In CustomerProvider class
   Future<void> saveQuotation({

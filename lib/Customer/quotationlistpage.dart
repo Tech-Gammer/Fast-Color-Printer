@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../Providers/customerprovider.dart';
 import '../Providers/lanprovider.dart';
+import 'actionpage.dart';
 
 class Quotation {
   final String id;
@@ -92,6 +93,19 @@ class QuotationListScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        // In InvoiceListScreen's appBar
+        leading: IconButton(
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CustomerActionPage(customer: customer),
+                ),
+              );
+            },
+            icon: const Icon(Icons.arrow_back)
+        ),
         title: Text(
           languageProvider.isEnglish
               ? 'Quotations - ${customer.name}'
