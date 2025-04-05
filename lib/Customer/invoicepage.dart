@@ -35,32 +35,8 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
   double _discount = 0.0;
   List<CustomerItemAssignment> _items = [];
   DateTime? _dueDate;
-  bool _isSaving = false; // Add this line
+  bool _isSaving = false;
 
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   _initializeExistingInvoice();
-  //   _discountController.addListener(_updateTotals);
-  // }
-  //
-  // void _initializeExistingInvoice() {
-  //   if (widget.invoice != null) {
-  //     _discountController.text = widget.invoice!.discount.toStringAsFixed(2);
-  //     _dueDateController.text = DateFormat('yyyy-MM-dd').format(widget.invoice!.dueDate);
-  //     _dueDate = widget.invoice!.dueDate;
-  //
-  //     for (var item in widget.invoice!.items) {
-  //       _selectedItems[item['itemId']] = true;
-  //       _quantityControllers[item['itemId']] =
-  //           TextEditingController(text: item['quantity'].toString());
-  //     }
-  //
-  //     WidgetsBinding.instance.addPostFrameCallback((_) {
-  //       _updateTotals();
-  //     });
-  //   }
-  // }
 
   @override
   void initState() {
@@ -201,36 +177,6 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
     }
   }
 
-  // Widget _buildSaveButton(LanguageProvider languageProvider) {
-  //   return SizedBox(
-  //     width: double.infinity,
-  //     height: 50,
-  //     child: ElevatedButton(
-  //       onPressed: _isSaving ? null : _saveInvoice, // Disable when saving
-  //       style: ElevatedButton.styleFrom(
-  //         backgroundColor: Colors.green,
-  //         shape: RoundedRectangleBorder(
-  //           borderRadius: BorderRadius.circular(10),
-  //         ),
-  //       ),
-  //       child: _isSaving
-  //           ? const CircularProgressIndicator(color: Colors.white) // Show loader
-  //           : Text(
-  //         languageProvider.isEnglish
-  //             ? widget.invoice == null
-  //             ? 'Create Invoice'
-  //             : 'Update Invoice'
-  //             : widget.invoice == null
-  //             ? 'بل بنائیں'
-  //             : 'بل اپ ڈیٹ کریں',
-  //         style: const TextStyle(
-  //             fontSize: 18,
-  //             color: Colors.white,
-  //             fontWeight: FontWeight.bold),
-  //       ),
-  //     ),
-  //   );
-  // }
 
   Widget _buildSaveButton(LanguageProvider languageProvider) {
     return Column(
@@ -331,7 +277,8 @@ class _InvoiceScreenState extends State<InvoiceScreen> {
         discount: discount,
         grandTotal: grandTotal,
         dueDate: _dueDate ?? DateTime.now(),
-        timestamp: widget.invoice?.timestamp ?? DateTime.now().millisecondsSinceEpoch,
+        // timestamp: widget.invoice?.timestamp ?? DateTime.now().millisecondsSinceEpoch,
+        timestamp: widget.invoice?.timestamp ?? DateTime.now(),
         invoiceNumber: widget.invoice?.invoiceNumber ?? 0,
       );
 

@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import '../Customer/quotationlistpage.dart';
@@ -62,11 +63,7 @@ class CustomerProvider with ChangeNotifier {
   Future<void> deleteCustomer(String id) async {
     try {
       await _dbRef.child(id).remove();
-      // Also delete related ledger entries if needed
-      // await FirebaseDatabase.instance.ref('invoices/$id').remove();
-      // await FirebaseDatabase.instance.ref('ledger/$id').remove();
-      // await FirebaseDatabase.instance.ref('filled/$id').remove();
-      // await FirebaseDatabase.instance.ref('filledledger/$id').remove();
+
       await fetchCustomers();
     } catch (e) {
       print("Error deleting customer: $e");
@@ -79,7 +76,8 @@ class CustomerProvider with ChangeNotifier {
       String itemId,
       String itemName,
       double rate,
-      ) async {
+      )
+  async {
     await _customerItemsRef.push().set({
       'customerId': customerId,
       'itemId': itemId,
@@ -211,7 +209,7 @@ class CustomerProvider with ChangeNotifier {
     required DateTime dueDate,
     String? invoiceId,
   })
-  async {
+  async   {
     try {
       final databaseRef = FirebaseDatabase.instance.ref('customers/$customerId/invoices');
       final invoiceNumberRef = _metadataRef.child('lastInvoiceNumber');
@@ -292,5 +290,190 @@ class CustomerProvider with ChangeNotifier {
       throw 'Error deleting invoice: $e';
     }
   }
+
+  Future<void> addPayment(
+      String customerId,
+      String invoiceId,
+      Map<String, dynamic> payment,
+      )
+  async {
+    try {
+      if (customerId.isEmpty) throw 'Invalid customer ID';
+      if (invoiceId.isEmpty) throw 'Invalid invoice ID';
+
+      final amount = payment['amount'];
+      if (amount == null || (amount is! num && amount is! String)) {
+        throw 'Invalid payment amount';
+      }
+
+      final parsedAmount = amount is String ? double.tryParse(amount) : amount.toDouble();
+      if (parsedAmount == null || parsedAmount <= 0) {
+        throw 'Payment amount must be a positive number';
+      }
+
+      final database = FirebaseDatabase.instance;
+      final invoiceRef = database.ref('customers/$customerId/invoices/$invoiceId');
+      final paymentRef = database.ref('customers/$customerId/invoices/$invoiceId/payments');
+
+      final snapshot = await invoiceRef.get();
+      if (!snapshot.exists) throw 'Invoice not found';
+
+      final invoiceData = snapshot.value as Map<dynamic, dynamic>;
+      final currentPaid = _parsePaymentAmount(invoiceData['paidAmount']);
+      final grandTotal = _parsePaymentAmount(invoiceData['grandTotal']);
+      final newPaid = currentPaid + parsedAmount;
+
+      if (newPaid > grandTotal * 1.5) {
+        throw 'Payment amount exceeds maximum allowed overpayment';
+      }
+
+      // Perform the update in a transaction
+      await invoiceRef.runTransaction((currentData) {
+        // currentData might be null or not a Map, so handle that safely.
+        final current = currentData is Map
+            ? Map<String, dynamic>.from(currentData)
+            : <String, dynamic>{};
+
+        final updatedData = {
+          ...current,
+          'paidAmount': newPaid,
+          if (newPaid >= grandTotal) 'paymentDate': ServerValue.timestamp,
+        };
+
+        // Return the new data directly.
+        return Transaction.success(updatedData);
+      });
+
+
+
+
+
+
+      // Record the payment separately
+      await paymentRef.push().set({
+        'amount': parsedAmount,
+        'method': payment['method']?.toString() ?? 'cash',
+        'date': payment['date'] ?? ServerValue.timestamp,
+        'description': payment['description']?.toString() ?? '',
+        'image': payment['image']?.toString(),
+        'timestamp': ServerValue.timestamp,
+      });
+
+      notifyListeners();
+    } on FirebaseException catch (e) {
+      throw 'Database error: ${e.message}';
+    } catch (e) {
+      throw 'Payment processing error: ${e.toString()}';
+    }
+  }
+
+  double _parsePaymentAmount(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+
+  Future<List<Map<String, dynamic>>> getPayments(
+      String customerId,
+      String invoiceId
+      )
+  async {
+    try {
+      final snapshot = await FirebaseDatabase.instance
+          .ref('customers/$customerId/invoices/$invoiceId/payments')
+          .orderByChild('timestamp')
+          .get();
+
+      if (!snapshot.exists) return [];
+
+      final payments = <Map<String, dynamic>>[];
+      snapshot.children.forEach((child) {
+        final payment = child.value as Map<dynamic, dynamic>;
+        payments.add({
+          'key': child.key,
+          'amount': payment['amount'],
+          'method': payment['method'],
+          'date': payment['date'] ?? payment['timestamp'],
+          'description': payment['description'],
+          'image': payment['image'],
+        });
+      });
+
+      // Sort by date descending
+      payments.sort((a, b) => (b['date'] as int).compareTo(a['date'] as int));
+
+      return payments;
+    } catch (e) {
+      throw 'Failed to load payments: ${e.toString()}';
+    }
+  }
+
+  Future<void> updatePayment(
+      String customerId,
+      String invoiceId,
+      Map<String, dynamic> updatedPayment,
+      ) async {
+    try {
+      final paymentId = updatedPayment['id'];
+      if (paymentId == null) throw 'Invalid payment ID';
+
+      // Get references to Firebase nodes
+      final paymentRef = FirebaseDatabase.instance
+          .ref('customers/$customerId/invoices/$invoiceId/payments/$paymentId');
+
+      final invoiceRef = FirebaseDatabase.instance
+          .ref('customers/$customerId/invoices/$invoiceId');
+
+      // Get existing payment data
+      final paymentSnapshot = await paymentRef.get();
+      if (!paymentSnapshot.exists) throw 'Payment not found';
+
+      // Calculate amount difference
+      final oldAmount = _parsePaymentAmount(paymentSnapshot.child('amount').value);
+      final newAmount = _parsePaymentAmount(updatedPayment['amount']);
+      final amountDifference = newAmount - oldAmount;
+
+      // Update payment data
+      await paymentRef.update({
+        'amount': newAmount,
+        'method': updatedPayment['method'],
+        'date': updatedPayment['date'],
+        'description': updatedPayment['description'],
+        'image': updatedPayment['image'],
+      });
+
+      // Update invoice paid amount in transaction
+      await invoiceRef.runTransaction((currentData) {
+        if (currentData == null) throw 'Invoice not found';
+
+        final Map<String, dynamic> data = currentData as Map<String, dynamic>;
+        final currentPaid = _parsePaymentAmount(data['paidAmount']);
+        final newPaid = currentPaid + amountDifference;
+        final grandTotal = _parsePaymentAmount(data['grandTotal']);
+
+        // Validate new paid amount
+        if (newPaid < 0) throw 'Paid amount cannot be negative';
+        if (newPaid > grandTotal * 1.5) throw 'Payment exceeds maximum allowed';
+
+        data['paidAmount'] = newPaid;
+        if (newPaid >= grandTotal) {
+          data['paymentDate'] = ServerValue.timestamp;
+        }
+
+        return Transaction.success(data);  // Return Transaction.success
+      });
+
+      notifyListeners();
+    } on FirebaseException catch (e) {
+      throw 'Database error: ${e.message}';
+    } catch (e) {
+      throw 'Payment update failed: ${e.toString()}';
+    }
+  }
+
+
+
 
 }

@@ -5,6 +5,7 @@ import '../Providers/customerprovider.dart';
 import '../Providers/itemmodel.dart';
 import '../Providers/itemprovider.dart';
 import '../Providers/lanprovider.dart';
+import '../paymentpages/invoiceslist.dart';
 import 'actionpage.dart';
 import 'addcustomers.dart';
 
@@ -19,9 +20,35 @@ class _CustomerListState extends State<CustomerList> {
   final DatabaseReference _db = FirebaseDatabase.instance.ref();
   Map<String, double> _customerBalances = {};
 
+
+
+  void _loadCustomerBalances() async {
+    final customerProvider = Provider.of<CustomerProvider>(context, listen: false);
+    await customerProvider.fetchCustomers();
+
+    final Map<String, double> newBalances = {};
+
+    for (var customer in customerProvider.customers) {
+      try {
+        final invoices = await customerProvider.getInvoicesByCustomerId(customer.id);
+        double totalBalance = invoices.fold(0.0, (sum, invoice) {
+          return sum + (invoice.grandTotal - invoice.paidAmount);
+        });
+        newBalances[customer.id] = totalBalance;
+      } catch (e) {
+        print('Error calculating balance for ${customer.name}: $e');
+        newBalances[customer.id] = 0.0;
+      }
+    }
+
+    setState(() => _customerBalances = newBalances);
+  }
+
+
   @override
   void initState() {
     super.initState();
+    _loadCustomerBalances();
   }
 
 
@@ -148,10 +175,16 @@ class _CustomerListState extends State<CustomerList> {
                                     DataCell(Text(customer.name)),
                                     DataCell(Text(customer.address)),
                                     DataCell(Text(customer.phone)),
+                                    // DataCell(
+                                    //   Text(
+                                    //     'Balance: ${_customerBalances[customer.id]?.toStringAsFixed(2) ?? "0.00"}',
+                                    //     style: const TextStyle(color: Colors.blue),
+                                    //   ),
+                                    // ),
                                     DataCell(
                                       Text(
-                                        'Balance: ${_customerBalances[customer.id]?.toStringAsFixed(2) ?? "0.00"}',
-                                        style: const TextStyle(color: Colors.blue),
+                                        '${_customerBalances[customer.id]?.toStringAsFixed(2) ?? "0.00"}',
+                                        style: TextStyle(color: Colors.blue),
                                       ),
                                     ),
                                     DataCell(Row(
@@ -195,6 +228,9 @@ class _CustomerListState extends State<CustomerList> {
                                 margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                                 color: Colors.blue.shade50,
                                 child: ListTile(
+                                  onTap: (){
+                                    Navigator.push(context, MaterialPageRoute(builder: (context)=>InvoiceListScreen(customer: customer,)));
+                                  },
                                   leading: CircleAvatar(
                                     backgroundColor: Colors.blue.shade400,
                                     child: Text('${index + 1}', style: const TextStyle(color: Colors.white)),
@@ -206,9 +242,13 @@ class _CustomerListState extends State<CustomerList> {
                                       Text(customer.address, style: TextStyle(color: Colors.blue.shade600)),
                                       const SizedBox(height: 4),
                                       Text(customer.phone, style: TextStyle(color: Colors.blue.shade600)),
+                                      // Text(
+                                      //   'Balance: ${_customerBalances[customer.id]?.toStringAsFixed(2) ?? "0.00"}',
+                                      //   style: const TextStyle(color: Colors.blue),
+                                      // ),
                                       Text(
                                         'Balance: ${_customerBalances[customer.id]?.toStringAsFixed(2) ?? "0.00"}',
-                                        style: const TextStyle(color: Colors.blue),
+                                        style: TextStyle(color: Colors.blue),
                                       ),
                                       // In both desktop and mobile layouts, modify the action buttons:
                                       IconButton(
@@ -261,7 +301,8 @@ class _CustomerListState extends State<CustomerList> {
       BuildContext context,
       Customer customer,
       CustomerProvider customerProvider,
-      ) {
+      )
+  {
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
 
     showDialog(
@@ -314,91 +355,13 @@ class _CustomerListState extends State<CustomerList> {
       BuildContext context,
       Customer customer,
       CustomerProvider customerProvider,
-      ) {
+      )
+  {
     final nameController = TextEditingController(text: customer.name);
     final addressController = TextEditingController(text: customer.address);
     final phoneController = TextEditingController(text: customer.phone);
     final itemProvider = Provider.of<ItemProvider>(context, listen: false);
     final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-
-    // Future<void> _showAssignItemDialog() async {
-    //   final itemProvider = Provider.of<ItemProvider>(context, listen: false);
-    //   final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-    //
-    //   // Fetch items before showing the dialog
-    //   await itemProvider.fetchItems();
-    //
-    //   String? selectedItemId;
-    //   double rate = 0.0;
-    //
-    //   await showDialog(
-    //     context: context,
-    //     builder: (context) {
-    //       return StatefulBuilder(
-    //         builder: (context, setState) {
-    //           return AlertDialog(
-    //             title: Text(languageProvider.isEnglish ? 'Assign Item' : 'آئٹم تفویض کریں'),
-    //             content: Consumer<ItemProvider>(
-    //               builder: (context, itemProvider, child) {
-    //                 return Column(
-    //                   mainAxisSize: MainAxisSize.min,
-    //                   children: [
-    //                     DropdownButtonFormField<String>(
-    //                       items: itemProvider.items.map((item) {
-    //                         return DropdownMenuItem(
-    //                           value: item.id,
-    //                           child: Text(
-    //                             '${item.itemName} (${item.salePrice})',
-    //                             overflow: TextOverflow.ellipsis, // Add ellipsis for long text
-    //                           ),
-    //                           // child: Text('${item.itemName} (Sale Price: ${item.salePrice})'),
-    //                         );
-    //                       }).toList(),
-    //                       onChanged: (value) => setState(() => selectedItemId = value),
-    //                       decoration: InputDecoration(
-    //                         labelText: languageProvider.isEnglish ? 'Select Item' : 'آئٹم منتخب کریں',
-    //                       ),
-    //                     ),
-    //                     TextFormField(
-    //                       decoration: InputDecoration(
-    //                         labelText: languageProvider.isEnglish ? 'Rate' : 'شرح',
-    //                       ),
-    //                       keyboardType: TextInputType.number,
-    //                       onChanged: (value) => rate = double.tryParse(value) ?? 0.0,
-    //                     ),
-    //                   ],
-    //                 );
-    //               },
-    //             ),
-    //             actions: [
-    //               TextButton(
-    //                 onPressed: () => Navigator.pop(context),
-    //                 child: Text(languageProvider.isEnglish ? 'Cancel' : 'منسوخ کریں'),
-    //               ),
-    //               ElevatedButton(
-    //                 onPressed: () {
-    //                   if (selectedItemId != null && rate > 0) {
-    //
-    //                     final item = itemProvider.items
-    //                         .firstWhere((element) => element.id == selectedItemId);
-    //                     customerProvider.assignItemToCustomer(
-    //                       customer.id,
-    //                       selectedItemId!,
-    //                       item.itemName,
-    //                       rate,
-    //                     );
-    //                     Navigator.pop(context);
-    //                   }
-    //                 },
-    //                 child: Text(languageProvider.isEnglish ? 'Assign' : 'تفویض کریں'),
-    //               ),
-    //             ],
-    //           );
-    //         },
-    //       );
-    //     },
-    //   );
-    // }
 
     Future<void> _showAssignItemDialog() async {
       await itemProvider.fetchItems();
@@ -494,8 +457,6 @@ class _CustomerListState extends State<CustomerList> {
         },
       );
     }
-
-
 
     showDialog(
       context: context,
@@ -608,7 +569,8 @@ class _CustomerListState extends State<CustomerList> {
       BuildContext context,
       CustomerProvider customerProvider,
       CustomerItemAssignment assignment,
-      ) {
+      )
+  {
     TextEditingController rateController =
     TextEditingController(text: assignment.rate.toString());
 
